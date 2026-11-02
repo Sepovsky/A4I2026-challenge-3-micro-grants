@@ -27,6 +27,117 @@ Read the [reproducible review](data/TASK_2_3_REVIEW.md) and
 corrections. Registry records are not necessarily distinct firms or physical
 storefronts; possible duplicate filings remain visible for resolution.
 
+## Agent architecture
+
+The root orchestrator coordinates three specialist agents and calls shared Python
+tools for numerical work. The console uses deterministic coordination. A separate
+Google ADK entrypoint exposes the same specialist roles and tools for model-backed
+execution; live ADK, Vertex AI and BigQuery MCP execution still require cloud
+validation. The diagram shows the explicit scenario route; source evidence takes
+its own route below and bypasses grant allocation.
+
+![Agent architecture: the console, orchestrator, three specialists, shared tools and draft report.](docs/diagrams/agent-architecture.svg)
+
+The selected portfolio returns to the spatial agent for its cluster audit.
+
+<details>
+<summary>Editable Mermaid outline</summary>
+
+```mermaid
+flowchart TB
+    UI["Grant officer console"] --> API["FastAPI gateway<br/>Authentication and input validation"]
+    API -->|Explicit illustrative scenario| ROOT["Regime Stress-Test<br/>Orchestrator Agent"]
+
+    ROOT --> SUPPLY["Supply & Provenance<br/>Dependencies and source labels"]
+    ROOT --> RUNWAY["Runway, Sector & Purity<br/>Financial condition and eligibility"]
+    ROOT --> SPATIAL["Spatial & Human Impact<br/>People exposure and cluster audit"]
+
+    ROOT --> TOOLS["Shared deterministic Python tools<br/>Scores, allocation and diagnostics"]
+    SUPPLY --> TOOLS
+    RUNWAY --> TOOLS
+    SPATIAL --> TOOLS
+    TOOLS -->|Selected portfolio| SPATIAL
+    TOOLS --> CHECKS["Compare Regimes A / B / C<br/>Budget, spatial and sensitivity checks"]
+    CHECKS --> DRAFT["MODELED_SCENARIO<br/>Proposed awards and draft Markdown report"]
+```
+
+</details>
+
+The source route uses the reviewed local graph or an explicitly selected BigQuery
+source. Intake revisions are stored in SQLite locally or a private Cloud Storage
+bucket in the configured cloud deployment. Reviewing intake does not unlock
+automatic awards: source records continue to return `EVIDENCE_ONLY`.
+
+The [orchestrator](agents/regime_orchestrator_agent.py) assembles specialist findings,
+portfolio calculations and draft reports. [Graph tools](tools/resilience_analysis.py),
+[scoring and allocation](tools/scoring_engine.py),
+[scenario checks](tools/compliance_reporter.py), and the
+[evidence ledger](server/evidence.py) keep their calculations and review history
+inspectable. The [ADK entrypoint](agent/agent.py) and
+[MCP configuration](tools/mcp_bigquery_toolset.py) are separate from the console's
+deterministic tool interface.
+
+## Our approach
+
+We keep three questions separate: **who is exposed**, **what historical industry
+risk tells us**, and **what a grant might change**. A graph connection describes
+modeled exposure; a historical charge-off prior describes a different quantity;
+grant effectiveness requires its own evidence and assumptions.
+
+![Our approach: exposure, industry risk and grant-effect evidence, followed by a separate illustrative benchmark.](docs/diagrams/grant-review-approach.svg)
+
+<details>
+<summary>Editable Mermaid outline</summary>
+
+```mermaid
+flowchart TB
+    subgraph SOURCES["Source evidence"]
+        direction TB
+        subgraph EXPOSURE["1. Exposure"]
+            direction TB
+            INPUTS["Observed registry locations<br/>BEA input coefficients"]
+            INPUTS --> GRAPH["Modeled supply links<br/>Distance decay and buyer alternatives"]
+            GRAPH --> REACH["Distinct reach and weighted exposure<br/>Upstream / downstream<br/>Two-hop baseline; up to 8 hops"]
+        end
+
+        subgraph RISK["2. Industry risk"]
+            direction TB
+            SBA["Historical SBA loan outcomes"]
+            SBA --> VALIDATE["Horizon controls<br/>Held-out validation"]
+            VALIDATE --> PRIOR["Industry charge-off priors<br/>Canonical export pending"]
+        end
+
+        subgraph EFFECT["3. Grant effect"]
+            direction TB
+            INTAKE["Current financials and ownership<br/>Officer-held document references"]
+            INTAKE --> REVIEW["Versioned submission<br/>Separate officer review"]
+            REVIEW --> LIMIT["Reviewed cash runway<br/>Grant effectiveness unvalidated"]
+        end
+
+        REACH --> SOURCE_REVIEW["Explain exposure and evidence gaps"]
+        PRIOR --> SOURCE_REVIEW
+        LIMIT --> SOURCE_REVIEW
+        SOURCE_REVIEW --> HOLD["EVIDENCE_ONLY<br/>No grant awards computed"]
+    end
+
+    subgraph BENCHMARK["Illustrative scenario"]
+        direction TB
+        SCENARIO["Explicit illustrative applicants<br/>Assumed finances and grant effects"]
+        SCENARIO --> REGIMES["Compare A: full / B: bridge / C: hybrid<br/>Budget and request caps<br/>Indivisible shocks: full funding or zero"]
+        REGIMES --> MEMO["Overlap, spatial and sensitivity checks<br/>Draft report for officer review"]
+    end
+
+    SOURCES ~~~ BENCHMARK
+```
+
+</details>
+
+The illustrative scenario is a separate benchmark; it never supplies missing
+financials or verified relationships to registry records. Allocation uses a
+budgeted priority heuristic, with overlap and spatial diagnostics reported for
+review. The sensitivity sweep describes sampled award stability, and the report
+does not certify documents, establish jobs saved or approve awards.
+
 ## Task 2 — implemented graph work
 
 | Capability | Implementation and evidence | Validation status |

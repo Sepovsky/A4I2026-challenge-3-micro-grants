@@ -1,0 +1,123 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000" role="img" aria-labelledby="diagram-title diagram-description">
+  <title id="diagram-title">Agent architecture: four agents, one review workflow</title>
+  <desc id="diagram-description">An officer console calls an authenticated gateway. Explicit illustrative scenarios go to the regime orchestrator, which coordinates supply and provenance, runway and eligibility, and spatial and human-impact specialists. Shared deterministic tools calculate scenarios and check budget, request, spatial and sensitivity constraints. The output is a draft report, not an award approval. Source records remain evidence-only; live cloud validation is pending.</desc>
+  <style>
+svg { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --canvas:#f5f8f6; --surface:#ffffff; --ink:#153b36; --muted:#536f65;
+  --line:#ceddd5; --wire:#789387; --teal:#126b5a; --teal-soft:#e2f0e9;
+  --hero:#124b40; --hero-ink:#ffffff; --hero-muted:#d5ebe1;
+  --blue:#3a65a2; --blue-soft:#e9f0fa; --amber:#936016; --amber-soft:#fbefcf;
+  --purple:#6752a0; --purple-soft:#eeebf7;
+}
+@media (prefers-color-scheme:dark) {
+  svg { --canvas:#0a1d19; --surface:#112c24; --ink:#e4f0e8; --muted:#b2cabc;
+    --line:#345347; --wire:#8eaea0; --teal:#90d5b4; --teal-soft:#183e30;
+    --hero:#174d3d; --hero-ink:#f0fff5; --hero-muted:#d0e7d6;
+    --blue:#a8c8f3; --blue-soft:#1a3049; --amber:#f2ca80; --amber-soft:#3c3018;
+    --purple:#cabaf1; --purple-soft:#2c2641;
+  }
+}
+text { fill:var(--ink); }
+.canvas { fill:var(--canvas); }
+.surface { fill:var(--surface); stroke:var(--line); stroke-width:1.2; }
+.soft { fill:var(--teal-soft); stroke:var(--line); stroke-width:1.2; }
+.hero { fill:var(--hero); }
+.purple-panel { fill:var(--purple-soft); stroke:var(--line); stroke-width:1.2; }
+.muted { fill:var(--muted); }
+.teal { fill:var(--teal); }
+.blue { fill:var(--blue); }
+.amber { fill:var(--amber); }
+.purple { fill:var(--purple); }
+.hero-text { fill:var(--hero-ink); }
+.hero-muted { fill:var(--hero-muted); }
+.wire { fill:none; stroke:var(--wire); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.rule { stroke:var(--line); stroke-width:1.2; }
+.arrow-head { fill:var(--wire); }
+</style>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 1 1 L 7 4 L 1 7 Z" class="arrow-head" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="1000" rx="24" class="canvas" />
+  <text x="44" y="44" font-size="16" font-weight="500" class="teal">SYSTEM ARCHITECTURE</text>
+  <text x="44" y="86" font-size="34" font-weight="600">Four agents. One review workflow.</text>
+  <text x="44" y="116" font-size="18" font-weight="400" class="muted">Specialists assess the case; shared Python tools do the arithmetic.</text>
+  <circle cx="57" cy="152" r="13" fill="var(--teal-soft)" />
+  <text x="57" y="158" font-size="16" font-weight="500" class="teal" text-anchor="middle">1</text>
+  <text x="82" y="158" font-size="16" font-weight="500" class="muted">REQUEST &amp; COORDINATE</text>
+  <rect x="44" y="178" width="292" height="90" rx="14" class="surface" />
+  <text x="68" y="207" font-size="16" font-weight="500" class="muted">OFFICER</text>
+  <text x="68" y="240" font-size="22" font-weight="500">Review console</text>
+  <rect x="354" y="178" width="292" height="90" rx="14" class="surface" />
+  <text x="378" y="207" font-size="16" font-weight="500" class="muted">ACCESS LAYER</text>
+  <text x="378" y="240" font-size="22" font-weight="500">Authenticated API</text>
+  <rect x="664" y="178" width="292" height="90" rx="14" class="hero" />
+  <text x="688" y="207" font-size="16" font-weight="500" class="hero-muted">COORDINATOR</text>
+  <text x="688" y="240" font-size="22" font-weight="500" class="hero-text">Regime orchestrator</text>
+  <path d="M 336 223 H 354" class="wire" marker-end="url(#arrow)" />
+  <path d="M 646 223 H 664" class="wire" marker-end="url(#arrow)" />
+  <circle cx="57" cy="304" r="13" fill="var(--teal-soft)" />
+  <text x="57" y="310" font-size="16" font-weight="500" class="teal" text-anchor="middle">2</text>
+  <text x="82" y="310" font-size="16" font-weight="500" class="muted">THREE SPECIALIST AGENTS</text>
+  <text x="790" y="309" font-size="16" font-weight="400" class="muted" text-anchor="end">Explicit scenario route</text>
+  <path d="M 810 268 V 334 H 190" class="wire" />
+  <path d="M 190 334 V 354" class="wire" marker-end="url(#arrow)" />
+  <path d="M 500 334 V 354" class="wire" marker-end="url(#arrow)" />
+  <path d="M 810 334 V 354" class="wire" marker-end="url(#arrow)" />
+  <rect x="44" y="354" width="292" height="116" rx="14" class="surface" />
+  <rect x="45" y="365" width="4" height="90" rx="2" fill="var(--teal)" />
+  <text x="68" y="382" font-size="16" font-weight="500" class="teal">SUPPLY</text>
+  <text x="68" y="410" font-size="22" font-weight="500">Supply &amp;</text>
+  <text x="68" y="436" font-size="22" font-weight="500">provenance</text>
+  <text x="68" y="458" font-size="16" font-weight="400" class="muted">Dependencies · evidence labels</text>
+  <rect x="354" y="354" width="292" height="116" rx="14" class="surface" />
+  <rect x="355" y="365" width="4" height="90" rx="2" fill="var(--teal)" />
+  <text x="378" y="382" font-size="16" font-weight="500" class="teal">VIABILITY</text>
+  <text x="378" y="410" font-size="22" font-weight="500">Runway, sector</text>
+  <text x="378" y="436" font-size="22" font-weight="500">&amp; purity</text>
+  <text x="378" y="458" font-size="16" font-weight="400" class="muted">Cash runway · eligibility</text>
+  <rect x="664" y="354" width="292" height="116" rx="14" class="surface" />
+  <rect x="665" y="365" width="4" height="90" rx="2" fill="var(--teal)" />
+  <text x="688" y="382" font-size="16" font-weight="500" class="teal">COMMUNITY</text>
+  <text x="688" y="410" font-size="22" font-weight="500">Spatial &amp;</text>
+  <text x="688" y="436" font-size="22" font-weight="500">human impact</text>
+  <text x="688" y="458" font-size="16" font-weight="400" class="muted">People exposure · cluster audit</text>
+  <path d="M 190 470 V 496" class="wire" />
+  <path d="M 500 470 V 496" class="wire" />
+  <path d="M 810 470 V 496" class="wire" />
+  <path d="M 190 496 H 810" class="wire" />
+  <path d="M 500 496 V 548" class="wire" marker-end="url(#arrow)" />
+  <circle cx="57" cy="518" r="13" fill="var(--teal-soft)" />
+  <text x="57" y="524" font-size="16" font-weight="500" class="teal" text-anchor="middle">3</text>
+  <text x="82" y="524" font-size="16" font-weight="500" class="muted">CALCULATE WITH SHARED TOOLS</text>
+  <rect x="44" y="548" width="912" height="92" rx="14" class="soft" />
+  <text x="76" y="584" font-size="23" font-weight="500">Deterministic Python engine</text>
+  <text x="76" y="614" font-size="18" font-weight="400" class="muted">Scores · A/B/C allocation · budget and request caps</text>
+  <rect x="776" y="573" width="148" height="30" rx="15" fill="var(--teal-soft)" />
+  <text x="850.0" y="594" font-size="16" font-weight="500" class="teal" text-anchor="middle">Python tools</text>
+  <path d="M 956 592 H 976 V 412 H 956" class="wire" marker-end="url(#arrow)" />
+  <text x="956" y="520" font-size="16" font-weight="400" class="muted" text-anchor="end">Selected portfolio</text>
+  <circle cx="57" cy="684" r="13" fill="var(--teal-soft)" />
+  <text x="57" y="690" font-size="16" font-weight="500" class="teal" text-anchor="middle">4</text>
+  <text x="82" y="690" font-size="16" font-weight="500" class="muted">AUDIT &amp; EXPLAIN</text>
+  <path d="M 500 640 V 704 H 267" class="wire" />
+  <path d="M 500 704 H 733" class="wire" />
+  <path d="M 267 704 V 714" class="wire" marker-end="url(#arrow)" />
+  <path d="M 733 704 V 714" class="wire" marker-end="url(#arrow)" />
+  <rect x="44" y="714" width="446" height="84" rx="14" class="surface" />
+  <text x="68" y="748" font-size="21" font-weight="500">Portfolio rules</text>
+  <text x="68" y="776" font-size="17" font-weight="400" class="muted">Budget caps · full-or-zero cliffs</text>
+  <rect x="510" y="714" width="446" height="84" rx="14" class="surface" />
+  <text x="534" y="748" font-size="21" font-weight="500">Scenario diagnostics</text>
+  <text x="534" y="776" font-size="17" font-weight="400" class="muted">Overlap · spatial · sampled weights</text>
+  <path d="M 267 798 V 820 H 733 V 798" class="wire" />
+  <path d="M 500 820 V 844" class="wire" marker-end="url(#arrow)" />
+  <rect x="44" y="844" width="912" height="82" rx="14" class="hero" />
+  <text x="76" y="879" font-size="23" font-weight="500" class="hero-text">Draft review report</text>
+  <text x="76" y="907" font-size="18" font-weight="400" class="hero-muted">Proposed awards + supporting evidence gaps</text>
+  <rect x="778" y="870" width="146" height="30" rx="15" fill="var(--amber-soft)" />
+  <text x="851.0" y="891" font-size="16" font-weight="500" class="amber" text-anchor="middle">DRAFT ONLY</text>
+  <text x="44" y="968" font-size="17" font-weight="400" class="muted">Source records stay EVIDENCE_ONLY. Live cloud execution awaits validation.</text>
+</svg>

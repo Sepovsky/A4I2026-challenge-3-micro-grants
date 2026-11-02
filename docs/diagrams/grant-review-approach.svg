@@ -1,0 +1,128 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1060" viewBox="0 0 1000 1060" role="img" aria-labelledby="diagram-title diagram-description">
+  <title id="diagram-title">Approach: evidence first, assumptions visible</title>
+  <desc id="diagram-description">Three questions are kept separate. Registry and BEA inputs produce modeled exposure; historical SBA loan outcomes support industry charge-off priors, whose canonical export is pending; reviewed applicant financials establish cash runway but do not validate grant effectiveness. These source records produce evidence-only findings and no awards. A separate illustrative benchmark assumes finances and grant effects, compares regimes A, B and C under budget and indivisible-shock rules, and produces a draft report after overlap, spatial and sampled sensitivity checks.</desc>
+  <style>
+svg { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --canvas:#f5f8f6; --surface:#ffffff; --ink:#153b36; --muted:#536f65;
+  --line:#ceddd5; --wire:#789387; --teal:#126b5a; --teal-soft:#e2f0e9;
+  --hero:#124b40; --hero-ink:#ffffff; --hero-muted:#d5ebe1;
+  --blue:#3a65a2; --blue-soft:#e9f0fa; --amber:#936016; --amber-soft:#fbefcf;
+  --purple:#6752a0; --purple-soft:#eeebf7;
+}
+@media (prefers-color-scheme:dark) {
+  svg { --canvas:#0a1d19; --surface:#112c24; --ink:#e4f0e8; --muted:#b2cabc;
+    --line:#345347; --wire:#8eaea0; --teal:#90d5b4; --teal-soft:#183e30;
+    --hero:#174d3d; --hero-ink:#f0fff5; --hero-muted:#d0e7d6;
+    --blue:#a8c8f3; --blue-soft:#1a3049; --amber:#f2ca80; --amber-soft:#3c3018;
+    --purple:#cabaf1; --purple-soft:#2c2641;
+  }
+}
+text { fill:var(--ink); }
+.canvas { fill:var(--canvas); }
+.surface { fill:var(--surface); stroke:var(--line); stroke-width:1.2; }
+.soft { fill:var(--teal-soft); stroke:var(--line); stroke-width:1.2; }
+.hero { fill:var(--hero); }
+.purple-panel { fill:var(--purple-soft); stroke:var(--line); stroke-width:1.2; }
+.muted { fill:var(--muted); }
+.teal { fill:var(--teal); }
+.blue { fill:var(--blue); }
+.amber { fill:var(--amber); }
+.purple { fill:var(--purple); }
+.hero-text { fill:var(--hero-ink); }
+.hero-muted { fill:var(--hero-muted); }
+.wire { fill:none; stroke:var(--wire); stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.rule { stroke:var(--line); stroke-width:1.2; }
+.arrow-head { fill:var(--wire); }
+</style>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 1 1 L 7 4 L 1 7 Z" class="arrow-head" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="1060" rx="24" class="canvas" />
+  <text x="44" y="44" font-size="16" font-weight="500" class="teal">OUR APPROACH</text>
+  <text x="44" y="86" font-size="34" font-weight="600">Evidence first. Assumptions visible.</text>
+  <text x="44" y="116" font-size="18" font-weight="400" class="muted">Three questions guide the review — each needs its own evidence.</text>
+  <rect x="44" y="154" width="292" height="412" rx="14" class="surface" />
+  <rect x="45" y="166" width="4" height="388" rx="2" fill="var(--teal)" />
+  <text x="68" y="188" font-size="16" font-weight="500" class="teal">01 · EXPOSURE</text>
+  <text x="68" y="222" font-size="23" font-weight="500">Who is</text>
+  <text x="68" y="249" font-size="23" font-weight="500">exposed?</text>
+  <rect x="64" y="274" width="252" height="72" rx="10" fill="var(--teal-soft)" />
+  <text x="80" y="302" font-size="18" font-weight="500">Registry + BEA</text>
+  <text x="80" y="326" font-size="16" font-weight="400" class="muted">IDs + input coefficients</text>
+  <path d="M 190 346 V 366" class="wire" marker-end="url(#arrow)" />
+  <rect x="64" y="366" width="252" height="72" rx="10" fill="var(--teal-soft)" />
+  <text x="80" y="394" font-size="18" font-weight="500">Model dependencies</text>
+  <text x="80" y="418" font-size="16" font-weight="400" class="muted">Decay + buyer alternatives</text>
+  <path d="M 190 438 V 458" class="wire" marker-end="url(#arrow)" />
+  <rect x="64" y="458" width="252" height="88" rx="10" fill="var(--teal-soft)" />
+  <text x="80" y="486" font-size="18" font-weight="500">Trace exposure</text>
+  <text x="80" y="510" font-size="16" font-weight="400" class="muted">Distinct reach + weights</text>
+  <text x="80" y="532" font-size="16" font-weight="400" class="muted">2-hop baseline; up to 8 hops</text>
+  <rect x="354" y="154" width="292" height="412" rx="14" class="surface" />
+  <rect x="355" y="166" width="4" height="388" rx="2" fill="var(--blue)" />
+  <text x="378" y="188" font-size="16" font-weight="500" class="blue">02 · INDUSTRY RISK</text>
+  <text x="378" y="222" font-size="23" font-weight="500">How risky is</text>
+  <text x="378" y="249" font-size="23" font-weight="500">this industry?</text>
+  <rect x="374" y="274" width="252" height="72" rx="10" fill="var(--blue-soft)" />
+  <text x="390" y="302" font-size="18" font-weight="500">SBA loan outcomes</text>
+  <text x="390" y="326" font-size="16" font-weight="400" class="muted">Observed historical loans</text>
+  <path d="M 500 346 V 366" class="wire" marker-end="url(#arrow)" />
+  <rect x="374" y="366" width="252" height="72" rx="10" fill="var(--blue-soft)" />
+  <text x="390" y="394" font-size="18" font-weight="500">Horizon + holdout</text>
+  <text x="390" y="418" font-size="16" font-weight="400" class="muted">Controls and validation</text>
+  <path d="M 500 438 V 458" class="wire" marker-end="url(#arrow)" />
+  <rect x="374" y="458" width="252" height="88" rx="10" fill="var(--blue-soft)" />
+  <text x="390" y="486" font-size="18" font-weight="500">Industry risk prior</text>
+  <text x="390" y="510" font-size="16" font-weight="400" class="muted">Charge-off probability</text>
+  <rect x="390" y="514" width="180" height="30" rx="15" fill="var(--amber-soft)" />
+  <text x="480.0" y="535" font-size="16" font-weight="500" class="amber" text-anchor="middle">Export pending</text>
+  <rect x="664" y="154" width="292" height="412" rx="14" class="surface" />
+  <rect x="665" y="166" width="4" height="388" rx="2" fill="var(--amber)" />
+  <text x="688" y="188" font-size="16" font-weight="500" class="amber">03 · GRANT EFFECT</text>
+  <text x="688" y="222" font-size="23" font-weight="500">What could a</text>
+  <text x="688" y="249" font-size="23" font-weight="500">grant change?</text>
+  <rect x="684" y="274" width="252" height="72" rx="10" fill="var(--amber-soft)" />
+  <text x="700" y="302" font-size="18" font-weight="500">Applicant evidence</text>
+  <text x="700" y="326" font-size="16" font-weight="400" class="muted">Cash, burn, debt, ownership</text>
+  <path d="M 810 346 V 366" class="wire" marker-end="url(#arrow)" />
+  <rect x="684" y="366" width="252" height="72" rx="10" fill="var(--amber-soft)" />
+  <text x="700" y="394" font-size="18" font-weight="500">Review a revision</text>
+  <text x="700" y="418" font-size="16" font-weight="400" class="muted">Saved intake + officer review</text>
+  <path d="M 810 438 V 458" class="wire" marker-end="url(#arrow)" />
+  <rect x="684" y="458" width="252" height="88" rx="10" fill="var(--amber-soft)" />
+  <text x="700" y="486" font-size="18" font-weight="500">Cash runway reviewed</text>
+  <text x="700" y="510" font-size="16" font-weight="400" class="muted">Grant effect remains unknown</text>
+  <path d="M 190 566 V 594" class="wire" />
+  <path d="M 500 566 V 594" class="wire" />
+  <path d="M 810 566 V 594" class="wire" />
+  <path d="M 190 594 H 810" class="wire" />
+  <path d="M 500 594 V 626" class="wire" marker-end="url(#arrow)" />
+  <rect x="44" y="626" width="912" height="92" rx="14" class="soft" />
+  <text x="76" y="661" font-size="23" font-weight="500" class="teal">EVIDENCE_ONLY</text>
+  <text x="76" y="690" font-size="18" font-weight="400" class="muted">Explain modeled exposure, reviewed intake and missing evidence.</text>
+  <rect x="778" y="646" width="146" height="30" rx="15" fill="var(--teal-soft)" />
+  <text x="851.0" y="667" font-size="16" font-weight="500" class="teal" text-anchor="middle">NO AWARDS</text>
+  <line x1="44" y1="756" x2="956" y2="756" class="rule" />
+  <rect x="360" y="740" width="280" height="32" rx="0" class="canvas" />
+  <text x="500" y="762" font-size="16" font-weight="500" class="purple" text-anchor="middle">SEPARATE BENCHMARK</text>
+  <rect x="44" y="786" width="912" height="242" rx="14" class="purple-panel" />
+  <text x="68" y="818" font-size="16" font-weight="500" class="purple">ILLUSTRATIVE SCENARIO · ASSUMPTIONS ONLY</text>
+  <rect x="68" y="844" width="270" height="126" rx="14" class="surface" />
+  <text x="88" y="880" font-size="20" font-weight="500">Assume inputs</text>
+  <text x="88" y="911" font-size="16" font-weight="400" class="muted">Scenario finances</text>
+  <text x="88" y="935" font-size="16" font-weight="400" class="muted">+ grant-effect assumptions</text>
+  <rect x="365" y="844" width="270" height="126" rx="14" class="surface" />
+  <text x="385" y="880" font-size="20" font-weight="500">Compare A / B / C</text>
+  <text x="385" y="911" font-size="16" font-weight="400" class="muted">Full · bridge · hybrid</text>
+  <text x="385" y="935" font-size="16" font-weight="400" class="muted">Budget caps; full-or-zero cliffs</text>
+  <rect x="662" y="844" width="270" height="126" rx="14" class="surface" />
+  <text x="682" y="880" font-size="20" font-weight="500">Stress-test &amp; explain</text>
+  <text x="682" y="911" font-size="16" font-weight="400" class="muted">Overlap · spatial fit</text>
+  <text x="682" y="935" font-size="16" font-weight="400" class="muted">+ sampled weight sensitivity</text>
+  <path d="M 338 907 H 365" class="wire" marker-end="url(#arrow)" />
+  <path d="M 635 907 H 662" class="wire" marker-end="url(#arrow)" />
+  <text x="68" y="1004" font-size="17" font-weight="400" class="purple">Draft report for officer review; document checks remain pending.</text>
+</svg>
