@@ -190,7 +190,7 @@ def get_google_managed_bigquery_mcp_toolsets(
 
     try:
         if resolved_mode in ("auto", "adk_bigquery_toolset", "all"):
-            toolsets.append(create_adk_managed_bigquery_toolset(write_enabled=True))
+            toolsets.append(create_adk_managed_bigquery_toolset(write_enabled=os.environ.get("ENABLE_BQ_WRITES") == "1"))
     except Exception as exc:  # noqa: BLE001
         logger.warning("Could not initialize BigQueryToolset: %s", exc)
 

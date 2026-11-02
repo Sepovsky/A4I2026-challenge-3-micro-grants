@@ -1363,6 +1363,16 @@ def evaluate_spatial_cluster_critical_mass(
         else:
             is_compliant = funded_count != 1 or len(cdata["applicant_ids"]) == 1
 
+        # A count alone cannot certify co-location. Coordinates must cover every
+        # funded record and fit a 200m radius around their centroid.
+        if funded_count:
+            center_lat = sum(pt[1] for pt in coords) / len(coords) if coords else 0
+            center_lon = sum(pt[2] for pt in coords) / len(coords) if coords else 0
+            within_radius = len(coords) == funded_count and all(
+                haversine_distance_meters(center_lat, center_lon, pt[1], pt[2]) <= radius_meters for pt in coords)
+        else:
+            within_radius = True
+        is_compliant = is_compliant and within_radius
         if not is_compliant:
             all_compliant = False
 
@@ -1376,17 +1386,10 @@ def evaluate_spatial_cluster_critical_mass(
             "funded_applicant_ids": cdata["funded_applicant_ids"],
             "funded_applicant_names": cdata["funded_applicant_names"],
             "max_inter_storefront_walk_meters": round(max_dist_m, 1),
-            "within_200m_walkshed_radius": max_dist_m <= (radius_meters * 2.5),
+            "within_200m_walkshed_radius": within_radius,
+            "distance_basis": "straight-line centroid radius proxy, not measured walking distance",
             "critical_mass_satisfied": is_compliant,
-            "status_note": (
-                f"PASS: {funded_count} co-located storefronts anchored in high-vacancy ({vac*100:.0f}%) cluster (>= {min_cluster_storefronts} required)."
-                if (high_blight_risk and is_compliant and funded_count >= min_cluster_storefronts)
-                else (
-                    f"PASS: Cluster vacancy ({vac*100:.0f}%) below 35% tipping threshold; {funded_count} anchored."
-                    if is_compliant
-                    else f"WARNING [Vector 6 Violation]: Only {funded_count} isolated storefront funded in {vac*100:.0f}% vacancy zone (< {min_cluster_storefronts} critical mass)."
-                )
-            ),
+            "status_note": f"{'PASS' if is_compliant else 'REVIEW REQUIRED'}: {funded_count} funded; critical mass and {radius_meters:.0f}m straight-line radius proxy checked.",
         })
 
     return {
@@ -1424,6 +1427,29 @@ def compute_applicant_utility(
     """
     if applicant.get("data_mode") == "source_review":
         raise ValueError("Registry evidence cannot supply cash runway, ownership, invoices or causal grant lift. Complete applicant inputs before scoring.")
+    # Direct ADK tool calls need the same finite-domain guarantees as HTTP calls.
+    for key in ("runway_quarters", "burn_rate", "sector_volatility", "parent_supplier_weight",
+                "direct_employees", "network_workers", "daily_commuters", "vulnerable_residents",
+                "cascade_score", "anchor_score", "small_biz_purity"):
+        value = applicant.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1e12:
+            raise ValueError(f"{key} must be a finite number in [0, 1e12]")
+    if applicant["burn_rate"] <= 0:
+        raise ValueError("burn_rate must be positive")
+    for key in ("cascade_score", "anchor_score", "small_biz_purity"):
+        if applicant[key] > 100:
+            raise ValueError(f"{key} must be in [0, 100]")
+    for key in ("eligible", "storefront_certified"):
+        if key in applicant and not isinstance(applicant[key], bool):
+            raise ValueError(f"{key} must be a boolean")
+    for key, lower, upper in (("equity_multiplier", 1, 1.5), ("institutional_ownership_pct", 0, 1),
+                              ("cluster_vacancy_rate", 0, 1), ("lat", -90, 90), ("lon", -180, 180)):
+        if key in applicant:
+            value = applicant[key]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not lower <= value <= upper:
+                raise ValueError(f"{key} must be finite and in [{lower}, {upper}]")
+    if "location_count" in applicant and (type(applicant["location_count"]) is not int or applicant["location_count"] < 1):
+        raise ValueError("location_count must be a positive integer")
     gate = evaluate_corporate_exclusion_gate(
         naics_4=str(applicant.get("naics", "0000")),
         fte_count=float(applicant.get("direct_employees", 0)),
@@ -1432,6 +1458,9 @@ def compute_applicant_utility(
         institutional_ownership_pct=float(applicant.get("institutional_ownership_pct", 0.0)),
         explicit_eligible_flag=applicant.get("eligible", True),
     )
+
+    if gate["eligible"] and not any(label in str(applicant.get("shock_category", "")) for label in ("Category 1", "Category 2")):
+        raise ValueError("An explicit Category 1 or Category 2 shock is required")
 
     runway = float(applicant["runway_quarters"])
     burn = float(applicant["burn_rate"])
@@ -1630,6 +1659,23 @@ def evaluate_industry_variety(
     }
 
 
+def _money_cents(value: float, name: str, *, positive: bool = False) -> int:
+    """Validate money at the boundary and allocate using integer cents."""
+    from decimal import Decimal, InvalidOperation
+    try:
+        if isinstance(value, bool):
+            raise ValueError
+        amount = Decimal(str(value))
+        if not amount.is_finite() or amount < 0 or (positive and amount <= 0):
+            raise ValueError
+        cents = amount * 100
+        if cents != cents.to_integral_value():
+            raise ValueError
+        return int(cents)
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValueError(f"{name} must be finite, {'positive' if positive else 'nonnegative'} money with at most two decimal places") from None
+
+
 def optimize_portfolio_knapsack(
     applicants: Optional[List[Dict[str, Any]]] = None,
     budget: float = 50000.0,
@@ -1637,360 +1683,140 @@ def optimize_portfolio_knapsack(
     weights: Optional[Dict[str, float]] = None,
     lambda_overlap: float = 0.25,
 ) -> Dict[str, Any]:
-    """
-    Executes Submodular Multi-Choice Knapsack Portfolio Optimization across the 3
-    Dose-Response Regimes defined in `01_ARCHITECTURE_AND_TRIAGE_FRAMEWORK.md` (Section 4),
-    `02_RED_TEAM_AND_DEFENSE_PLAYBOOK.md` (Vector 5), and `03_BEYOND_DATASET_ENHANCEMENT_MODEL.md` (Section 7.2):
+    """Budgeted priority allocation; this is a heuristic, not an exact knapsack solver.
 
-      - Regime A ("A" - Hard Threshold Step Function):
-        U_i(g_i) = U_i^max if g_i >= R_i ($10,000) else 0.0.
-        Concentrates $50,000 into 5 full $10,000 grants.
-
-      - Regime B ("B" - Concave Diminishing Returns):
-        U_i(g_i) = U_i^max * (g_i / R_i)^0.60 for Category 2 Flexible Working Capital;
-        enforces y_i = 0 (no partial grant) for Category 1 Indivisible Capital Cliffs.
-
-      - Regime C ("C" - OEWD Recommended Tiered Hybrid Allocation):
-        3 Tier-1 Anchor & Root Preservation Grants ($10,000 each = $30,000) for Category 1
-        Indivisible Capital Cliffs + 4 Tier-2 Cluster Stabilization Bridge Grants ($5,000 each = $20,000)
-        for Category 2 Flexible Working Capital + Landlord Relief Addendum, while routing the
-        2.2-quarter non-profit clinic to CDBG Public Services.
+    A funds full requests. B allows capped bridges for flexible shocks. C reserves
+    up to three affordable full-request slots, including an essential anchor when
+    available, then funds urgent flexible bridges. Spatial and overlap diagnostics
+    are reported separately; they are not promises of constraint satisfaction.
     """
     apps = applicants if applicants is not None else get_canonical_applicants()
+    budget_cents = _money_cents(budget, "budget")
+    if not isinstance(regime, str) or regime.strip().upper() not in ("A", "B", "C"):
+        raise ValueError("regime must be A, B or C")
+    regime_code = regime.strip().upper()
+    if not math.isfinite(lambda_overlap) or not 0 <= lambda_overlap <= 1:
+        raise ValueError("lambda_overlap must be in [0, 1]")
     app_by_id = {a["id"]: a for a in apps}
-    w = weights or {"w_cascade": 0.30, "w_anchor": 0.25, "w_people": 0.25, "w_purity": 0.20}
+    if len(app_by_id) != len(apps):
+        raise ValueError("Applicant IDs must be unique")
+    requests = {a["id"]: _money_cents(a.get("requested_amount", 10000), "requested_amount", positive=True) for a in apps}
+    w = {"w_cascade": .30, "w_anchor": .25, "w_people": .25, "w_purity": .20}
+    if weights is not None:
+        if set(weights) - set(w):
+            raise ValueError("Unknown policy weight")
+        w.update(weights)
+    if any(not math.isfinite(v) or not 0 <= v <= 1 for v in w.values()) or not math.isclose(sum(w.values()), 1, abs_tol=1e-8):
+        raise ValueError("Policy weights must be finite, nonnegative and sum to one")
+    ranked = evaluate_all_applicants(apps, **w)
+    remaining = budget_cents
+    awards: Dict[str, int] = {}
+    tiers: Dict[str, str] = {}
 
-    ranked = evaluate_all_applicants(
-        apps,
-        w_cascade=w.get("w_cascade", 0.30),
-        w_anchor=w.get("w_anchor", 0.25),
-        w_people=w.get("w_people", 0.25),
-        w_purity=w.get("w_purity", 0.20),
-    )
+    def indivisible(item):
+        return "Category 1" in str(app_by_id[item["id"]].get("shock_category", ""))
 
-    regime_code = regime.strip().upper()[0]
-    allocations: List[Dict[str, Any]] = []
-    remaining_budget = float(budget)
+    def rerouted(item):
+        a = app_by_id[item["id"]]
+        return regime_code == "C" and a.get("alternate_funding_routing") and float(a.get("runway_quarters", 0)) >= 2
 
-    if regime_code == "A":
-        # Regime A: Full $10,000 grants only (Step Function)
-        for item in ranked:
-            raw_app = app_by_id[item["id"]]
-            req = float(raw_app.get("requested_amount", 10000.0))
-            if not item["eligible"]:
-                allocations.append({
-                    **item,
-                    "award_amount": 0.0,
-                    "tier": "Disqualified (Stage 0 Gate)",
-                    "decision_code": "EXCLUDED_STAGE0_CORPORATE_GATE",
-                    "realized_utility": 0.0,
-                    "direct_jobs_preserved": 0,
-                })
-            elif remaining_budget >= req:
-                remaining_budget -= req
-                allocations.append({
-                    **item,
-                    "award_amount": req,
-                    "tier": "Regime A: Full $10,000 Grant",
-                    "decision_code": "FUNDED_REGIME_A_FULL_10K",
-                    "realized_utility": item["composite_utility_U_i"],
-                    "direct_jobs_preserved": int(raw_app["direct_employees"]),
-                })
-            else:
-                allocations.append({
-                    **item,
-                    "award_amount": 0.0,
-                    "tier": "Unfunded (Regime A Budget Exhausted)",
-                    "decision_code": "WAITLISTED_BUDGET_CAP",
-                    "realized_utility": 0.0,
-                    "direct_jobs_preserved": 0,
-                })
+    def grant(item, cents, tier):
+        nonlocal remaining
+        ident = item["id"]
+        if 0 < cents <= remaining and cents <= requests[ident]:
+            awards[ident] = cents
+            tiers[ident] = tier
+            remaining -= cents
+            return True
+        return False
 
-    elif regime_code == "B":
-        # Regime B: Concave (g_i / R_i)^0.60 where Category 1 indivisible cliffs require $10k and Category 2 can take $5k
-        # With $50,000 budget, Category 1 top anchors get $10,000; remaining eligible get $5,000 bridge grants
-        for item in ranked:
-            raw_app = app_by_id[item["id"]]
-            req = float(raw_app.get("requested_amount", 10000.0))
-            is_indivisible = "Category 1" in str(raw_app.get("shock_category", ""))
-            if not item["eligible"]:
-                allocations.append({
-                    **item,
-                    "award_amount": 0.0,
-                    "tier": "Disqualified (Stage 0 Gate)",
-                    "decision_code": "EXCLUDED_STAGE0_CORPORATE_GATE",
-                    "realized_utility": 0.0,
-                    "direct_jobs_preserved": 0,
-                })
-            elif is_indivisible and remaining_budget >= req:
-                remaining_budget -= req
-                allocations.append({
-                    **item,
-                    "award_amount": req,
-                    "tier": "Regime B: Full $10,000 (Indivisible Capital Cliff y_i=0)",
-                    "decision_code": "FUNDED_REGIME_B_CLIFF_10K",
-                    "realized_utility": item["composite_utility_U_i"],
-                    "direct_jobs_preserved": int(raw_app["direct_employees"]),
-                })
-            elif (not is_indivisible) and remaining_budget >= 5000.0:
-                remaining_budget -= 5000.0
-                concave_factor = (5000.0 / req) ** 0.60
-                allocations.append({
-                    **item,
-                    "award_amount": 5000.0,
-                    "tier": "Regime B: $5,000 Concave Bridge ((g/R)^0.60 = 0.66x)",
-                    "decision_code": "FUNDED_REGIME_B_BRIDGE_5K",
-                    "realized_utility": round(item["composite_utility_U_i"] * concave_factor, 2),
-                    "direct_jobs_preserved": int(raw_app["direct_employees"]),
-                })
-            else:
-                allocations.append({
-                    **item,
-                    "award_amount": 0.0,
-                    "tier": "Unfunded / Waitlisted",
-                    "decision_code": "WAITLISTED_BUDGET_CAP",
-                    "realized_utility": 0.0,
-                    "direct_jobs_preserved": 0,
-                })
-
+    eligible = [r for r in ranked if r["eligible"] and not rerouted(r)]
+    if regime_code == "C":
+        full_candidates = [r for r in eligible if indivisible(r)]
+        anchors = [r for r in full_candidates if r["naics"][:4] in ("4451", "4452") or r["s_anchor"] >= 90]
+        # Reserve an affordable anchor, then fill remaining full-request slots by rank.
+        if anchors:
+            for item in anchors:
+                if grant(item, requests[item["id"]], "Full request / essential anchor"):
+                    break
+        for item in full_candidates:
+            if len(awards) >= 3:
+                break
+            if item["id"] not in awards:
+                grant(item, requests[item["id"]], "Full request / indivisible shock")
+        for item in eligible:
+            if not indivisible(item) and item["runway_quarters"] <= 1.5:
+                grant(item, min(500000, requests[item["id"]], remaining), "Flexible working-capital bridge")
     else:
-        # Regime C: Canonical OEWD Tiered Hybrid Portfolio (3 x $10k Tier-1 + 4 x $5k Tier-2 = $50k)
-        # Enforces Dual-Track Tier-1 balance (2 Track-2 Root Suppliers + 1 Track-1 Essential Neighborhood Anchor),
-        # 200m Spatial Walkshed Critical Mass (>= 3 co-located storefronts in high-vacancy cluster),
-        # and NAICS Sector Variety (<= 45% single-sector share), while re-routing >2.0q non-profit clinic to CDBG.
-        max_tier1_slots = max(1, min(3, int(budget // 10000.0) - 2)) if budget >= 30000.0 else int(budget // 10000.0)
+        for item in eligible:
+            amount = requests[item["id"]]
+            if regime_code == "B" and not indivisible(item):
+                amount = min(500000, amount, remaining)
+            grant(item, amount, "Full request" if amount == requests[item["id"]] else "Flexible working-capital bridge")
 
-        eligible_tier1_candidates = [
-            item
-            for item in ranked
-            if item["eligible"]
-            and not (
-                app_by_id[item["id"]].get("alternate_funding_routing")
-                and float(app_by_id[item["id"]].get("runway_quarters", 0.0)) >= 2.0
-            )
-            and "Category 1" in str(app_by_id[item["id"]].get("shock_category", ""))
-        ]
-
-        # Dual-Track Tier-1 selection: ensure at least 1 Track-1 Essential B2C Anchor (e.g., NAICS 4451/4452 grocer)
-        # alongside Track-2 Root B2B Suppliers when available
-        tier1_selected_ids: List[str] = []
-        essential_b2c_candidates = [
-            item
-            for item in eligible_tier1_candidates
-            if str(item.get("naics", ""))[:4] in ("4451", "4452")
-            or float(item.get("s_anchor", 0.0)) >= 90.0
-        ]
-        for item in eligible_tier1_candidates:
-            if len(tier1_selected_ids) >= max_tier1_slots:
-                break
-            # Reserve the last Tier-1 slot for the top Track-1 Essential Anchor if none selected yet
-            if (
-                len(tier1_selected_ids) == max_tier1_slots - 1
-                and essential_b2c_candidates
-                and not any(
-                    str(app_by_id[tid].get("naics", ""))[:4] in ("4451", "4452")
-                    or float(app_by_id[tid].get("anchor_score", 0.0)) >= 90.0
-                    for tid in tier1_selected_ids
-                )
-            ):
-                best_anchor_id = essential_b2c_candidates[0]["id"]
-                if best_anchor_id not in tier1_selected_ids:
-                    tier1_selected_ids.append(best_anchor_id)
-                    break
-            tier1_selected_ids.append(item["id"])
-
-        tier1_budget_used = sum(
-            float(app_by_id[tid].get("requested_amount", 10000.0)) for tid in tier1_selected_ids
-        )
-        rem_tier2_budget = max(0.0, float(budget) - tier1_budget_used)
-        max_tier2_slots = int(rem_tier2_budget // 5000.0)
-
-        eligible_tier2_candidates = [
-            item
-            for item in ranked
-            if item["eligible"]
-            and item["id"] not in tier1_selected_ids
-            and not (
-                app_by_id[item["id"]].get("alternate_funding_routing")
-                and float(app_by_id[item["id"]].get("runway_quarters", 0.0)) >= 2.0
-            )
-            and float(app_by_id[item["id"]].get("runway_quarters", 0.0)) <= 1.5
-        ]
-
-        # Select Tier-2 bridge awardees while respecting industry variety (max 3 per 4-digit NAICS across 7 awards)
-        # and ensuring high-vacancy clusters reach >= 3 critical mass
-        sector_counts_so_far: Dict[str, int] = {}
-        cluster_counts_so_far: Dict[str, int] = {}
-        for tid in tier1_selected_ids:
-            n4 = str(app_by_id[tid].get("naics", "0000"))[:4]
-            cid = str(app_by_id[tid].get("cluster_id", "default"))
-            sector_counts_so_far[n4] = sector_counts_so_far.get(n4, 0) + 1
-            cluster_counts_so_far[cid] = cluster_counts_so_far.get(cid, 0) + 1
-
-        # Determine dominant high-vacancy cluster to anchor >= 3 storefronts
-        high_vac_clusters = [
-            str(a.get("cluster_id", "default"))
-            for a in apps
-            if float(a.get("cluster_vacancy_rate", 0.0)) > 0.35
-        ]
-        target_cluster = high_vac_clusters[0] if high_vac_clusters else None
-
-        tier2_selected_ids: List[str] = []
-        # For large corridor pools (>20 applicants), enforce strict NAICS diversity cap (<=2 per NAICS4)
-        # and cluster co-location so the 7-storefront portfolio spans >=4 distinct sectors in the target cluster
-        enforce_diversity_filter = len(apps) > 20
-
-        if enforce_diversity_filter:
-            for item in eligible_tier2_candidates:
-                if len(tier2_selected_ids) >= max_tier2_slots:
-                    break
-                raw_app = app_by_id[item["id"]]
-                n4 = str(raw_app.get("naics", "0000"))[:4]
-                cid = str(raw_app.get("cluster_id", "default"))
-                if sector_counts_so_far.get(n4, 0) >= 2:
-                    continue
-                if target_cluster and cluster_counts_so_far.get(target_cluster, 0) < 3 and cid != target_cluster:
-                    continue
-                tier2_selected_ids.append(item["id"])
-                sector_counts_so_far[n4] = sector_counts_so_far.get(n4, 0) + 1
-                cluster_counts_so_far[cid] = cluster_counts_so_far.get(cid, 0) + 1
-
-        # Fill any remaining Tier-2 slots in rank order
-        for item in eligible_tier2_candidates:
-            if len(tier2_selected_ids) >= max_tier2_slots:
-                break
-            if item["id"] not in tier2_selected_ids:
-                tier2_selected_ids.append(item["id"])
-
-        for item in ranked:
-            raw_app = app_by_id[item["id"]]
-            req = float(raw_app.get("requested_amount", 10000.0))
-            alt_routing = raw_app.get("alternate_funding_routing")
-
-            if not item["eligible"]:
-                allocations.append({
-                    **item,
-                    "award_amount": 0.0,
-                    "tier": "Disqualified (Stage 0 Corporate Gate)",
-                    "decision_code": "EXCLUDED_STAGE0_CORPORATE_GATE",
-                    "realized_utility": 0.0,
-                    "direct_jobs_preserved": 0,
-                })
-            elif alt_routing and float(raw_app.get("runway_quarters", 0.0)) >= 2.0:
-                allocations.append({
-                    **item,
-                    "award_amount": 0.0,
-                    "tier": f"Re-Routed: {alt_routing}",
-                    "decision_code": "REROUTED_CDBG_PUBLIC_SERVICES",
-                    "realized_utility": 0.0,
-                    "direct_jobs_preserved": 0,
-                })
-            elif item["id"] in tier1_selected_ids and remaining_budget >= req:
-                remaining_budget -= req
-                allocations.append({
-                    **item,
-                    "award_amount": req,
-                    "tier": "Tier 1: Full Anchor & Root Supplier Grant ($10,000)",
-                    "decision_code": "FUNDED_TIER1_FULL_10K",
-                    "realized_utility": item["composite_utility_U_i"],
-                    "direct_jobs_preserved": int(raw_app["direct_employees"]),
-                })
-            elif item["id"] in tier2_selected_ids and remaining_budget >= 5000.0:
-                remaining_budget -= 5000.0
-                concave_factor = (5000.0 / req) ** 0.60
-                allocations.append({
-                    **item,
-                    "award_amount": 5000.0,
-                    "tier": "Tier 2: Cluster Stabilization Bridge Grant ($5,000 + Landlord Match)",
-                    "decision_code": "FUNDED_TIER2_BRIDGE_5K",
-                    "realized_utility": round(item["composite_utility_U_i"] * concave_factor, 2),
-                    "direct_jobs_preserved": int(raw_app["direct_employees"]),
-                })
-            else:
-                allocations.append({
-                    **item,
-                    "award_amount": 0.0,
-                    "tier": "Tier 3: Secondary Waitlist (2.5q Buffer)",
-                    "decision_code": "WAITLISTED_BUDGET_CAP",
-                    "realized_utility": 0.0,
-                    "direct_jobs_preserved": 0,
-                })
-
-    funded_items = [a for a in allocations if a["award_amount"] > 0]
-    funded_ids = [a["id"] for a in funded_items]
-
-    # Compute Submodular Downstream Overlap Penalty (Section 7.2)
-    overlap_penalty = 0.0
-    overlap_pairs: List[Dict[str, Any]] = []
-    for i in range(len(funded_items)):
-        for j in range(i + 1, len(funded_items)):
-            id_i = funded_items[i]["id"]
-            id_j = funded_items[j]["id"]
-            dep_i = app_by_id[id_i].get("downstream_dependents", [])
-            dep_j = app_by_id[id_j].get("downstream_dependents", [])
-            j_sim = jaccard_similarity(dep_i, dep_j)
-            if j_sim > 0:
-                pair_pen = float(lambda_overlap) * j_sim * min(
-                    funded_items[i]["realized_utility"],
-                    funded_items[j]["realized_utility"],
-                )
-                overlap_penalty += pair_pen
-                overlap_pairs.append({
-                    "pair": f"{funded_items[i]['name']} <-> {funded_items[j]['name']}",
-                    "jaccard_similarity": round(j_sim, 4),
-                    "penalty": round(pair_pen, 2),
-                })
-
-    gross_utility = sum(a["realized_utility"] for a in funded_items)
-    net_submodular_utility = gross_utility - overlap_penalty
-    total_disbursed = sum(a["award_amount"] for a in funded_items)
-    total_direct_jobs = sum(a["direct_jobs_preserved"] for a in funded_items)
-    total_weighted_people = sum(a["people_helped_H_i"] for a in funded_items)
-    total_daily_beneficiaries = sum(
-        app_by_id[a["id"]]["direct_employees"]
-        + app_by_id[a["id"]]["network_workers"]
-        + app_by_id[a["id"]]["daily_commuters"]
-        + app_by_id[a["id"]]["vulnerable_residents"]
-        for a in funded_items
-    )
-
-    spatial_audit = evaluate_spatial_cluster_critical_mass(apps, funded_ids=funded_ids)
-    industry_variety_audit = evaluate_industry_variety(funded_items)
-
+    allocations = []
+    for item in ranked:
+        ident = item["id"]
+        cents = awards.get(ident, 0)
+        amount = cents / 100
+        fraction = cents / requests[ident]
+        if not item["eligible"]:
+            code, tier = "EXCLUDED_STAGE0_CORPORATE_GATE", "Disqualified (Stage 0 Gate)"
+        elif rerouted(item):
+            code, tier = "REROUTED_ALTERNATE_FUNDING", f"Re-Routed: {app_by_id[ident]['alternate_funding_routing']}"
+        elif cents:
+            code, tier = "FUNDED_FULL_REQUEST" if fraction == 1 else "FUNDED_FLEXIBLE_BRIDGE", tiers[ident]
+        else:
+            code, tier = "WAITLISTED_BUDGET_OR_POLICY", "Unfunded / waitlisted"
+        allocations.append({
+            **item, "requested_amount": requests[ident] / 100, "award_amount": amount,
+            "marginal_survival_lift_delta_p": round(marginal_survival_lift(
+                app_by_id[ident]["runway_quarters"], amount, app_by_id[ident]["burn_rate"]), 4) if cents else 0,
+            "tier": tier, "decision_code": code,
+            "realized_utility": round(item["composite_utility_U_i"] * fraction ** .60, 2) if cents else 0,
+            "direct_jobs_preserved": int(app_by_id[ident]["direct_employees"]) if cents else 0,
+        })
+    funded = [a for a in allocations if a["award_amount"] > 0]
+    pairs = []
+    for i, a in enumerate(funded):
+        for b in funded[i + 1:]:
+            similarity = jaccard_similarity(app_by_id[a["id"]].get("downstream_dependents", []), app_by_id[b["id"]].get("downstream_dependents", []))
+            if similarity:
+                penalty = lambda_overlap * similarity * min(a["realized_utility"], b["realized_utility"])
+                pairs.append({"pair": f"{a['name']} <-> {b['name']}", "jaccard_similarity": round(similarity, 4), "penalty": round(penalty, 2)})
+    overlap = sum(p["penalty"] for p in pairs)
+    gross = sum(a["realized_utility"] for a in funded)
+    disbursed = (budget_cents - remaining) / 100
+    jobs = sum(a["direct_jobs_preserved"] for a in funded)
     return {
-        "regime": regime_code,
-        "budget": budget,
-        "total_disbursed": total_disbursed,
-        "remaining_budget": remaining_budget,
-        "funded_count": len(funded_items),
-        "funded_ids": funded_ids,
-        "funded_names": [a["name"] for a in funded_items],
-        "direct_jobs_preserved": total_direct_jobs,
-        "cost_per_direct_job_preserved": round(total_disbursed / max(1, total_direct_jobs), 2),
-        "total_weighted_people_helped_H": round(total_weighted_people, 2),
-        "total_daily_beneficiaries_touched": total_daily_beneficiaries,
-        "gross_portfolio_utility": round(gross_utility, 2),
-        "submodular_overlap_penalty": round(overlap_penalty, 2),
-        "net_submodular_portfolio_utility": round(net_submodular_utility, 2),
-        "overlap_pairs": overlap_pairs,
-        "spatial_cluster_audit": spatial_audit,
-        "industry_variety_audit": industry_variety_audit,
-        "allocations": allocations,
+        "regime": regime_code, "allocation_method": "budgeted_priority_heuristic",
+        "evidence_status": "MODELED_SCENARIO", "budget": budget_cents / 100,
+        "total_disbursed": disbursed, "remaining_budget": remaining / 100,
+        "funded_count": len(funded), "funded_ids": [a["id"] for a in funded],
+        "funded_names": [a["name"] for a in funded], "direct_jobs_preserved": jobs,
+        "cost_per_direct_job_preserved": round(disbursed / max(1, jobs), 2),
+        "total_weighted_people_helped_H": round(sum(a["people_helped_H_i"] for a in funded), 2),
+        "total_daily_beneficiaries_touched": sum(sum(app_by_id[a["id"]][k] for k in ("direct_employees", "network_workers", "daily_commuters", "vulnerable_residents")) for a in funded),
+        "gross_portfolio_utility": round(gross, 2), "submodular_overlap_penalty": round(overlap, 2),
+        "net_submodular_portfolio_utility": round(gross - overlap, 2), "overlap_pairs": pairs,
+        "spatial_cluster_audit": evaluate_spatial_cluster_critical_mass(apps, funded_ids=[a["id"] for a in funded]),
+        "industry_variety_audit": evaluate_industry_variety(funded), "allocations": allocations,
     }
 
 
 def run_all_regimes_comparison(
     applicants: Optional[List[Dict[str, Any]]] = None,
     budget: float = 50000.0,
+    weights: Optional[Dict[str, float]] = None,
 ) -> Dict[str, Any]:
     """
     Runs all 3 dose-response funding regimes (Regime A, Regime B, Regime C) side-by-side
     and compares businesses saved, direct jobs preserved, spatial critical-mass compliance,
     and submodular portfolio utility.
     """
-    res_a = optimize_portfolio_knapsack(applicants=applicants, budget=budget, regime="A")
-    res_b = optimize_portfolio_knapsack(applicants=applicants, budget=budget, regime="B")
-    res_c = optimize_portfolio_knapsack(applicants=applicants, budget=budget, regime="C")
+    res_a = optimize_portfolio_knapsack(applicants=applicants, budget=budget, regime="A", weights=weights)
+    res_b = optimize_portfolio_knapsack(applicants=applicants, budget=budget, regime="B", weights=weights)
+    res_c = optimize_portfolio_knapsack(applicants=applicants, budget=budget, regime="C", weights=weights)
     return {
         "budget": budget,
         "recommended_regime": "C",
@@ -2006,15 +1832,7 @@ def compute_sensitivity_and_robust_awardees(
     applicants: Optional[List[Dict[str, Any]]] = None,
     budget: float = 50000.0,
 ) -> Dict[str, Any]:
-    """
-    Implements Vector 10 Parameter Invariance & Sensitivity Bounds Analysis and
-    Theorem 5 (Simplex Extreme-Point Dominance) from `03_BEYOND_DATASET_ENHANCEMENT_MODEL.md`:
-      1. Evaluates the portfolio across the 4 extreme vertices V(W) of the policy weight
-         simplex W = [0.15, 0.50]^4 to identify the Robust Awardee Set S_robust.
-      2. Sweeps alpha in [0.0, 1.0] (Cascade vs. Anchor tradeoff) to compute each
-         applicant's Parameter Invariance Interval [alpha_min(i), alpha_max(i)] and
-         identifies the exact Crossover Phase Boundary (alpha ~= 0.72).
-    """
+    """Report sampled award stability using the same allocation rules and budget."""
     apps = applicants if applicants is not None else get_canonical_applicants()
 
     simplex_vertices = {
@@ -2035,9 +1853,9 @@ def compute_sensitivity_and_robust_awardees(
             weights=w_vec,
         )
         funded_allocs_v = [a for a in port_v["allocations"] if a["award_amount"] > 0]
-        tier1_allocs_v = [a for a in funded_allocs_v if a["award_amount"] >= 10000.0]
+        tier1_allocs_v = [a for a in funded_allocs_v if a["award_amount"] == a["requested_amount"]]
         vertex_top3_sets[v_name] = [a["name"] for a in tier1_allocs_v[:3]]
-        vertex_top7_sets[v_name] = [a["name"] for a in funded_allocs_v[:7]]
+        vertex_top7_sets[v_name] = [a["name"] for a in funded_allocs_v]
 
     # Intersection across all simplex vertices
     robust_tier1 = set(vertex_top3_sets["V1_Cascade_Emphasis"])
@@ -2048,51 +1866,40 @@ def compute_sensitivity_and_robust_awardees(
     for names in vertex_top7_sets.values():
         robust_portfolio &= set(names)
 
-    # Sweep alpha in [0.00, 1.00] (step 0.02) holding people+purity at 0.45 and splitting 0.55 between cascade & anchor
-    invariance_intervals: Dict[str, Dict[str, Any]] = {
-        a["name"]: {"alpha_min": None, "alpha_max": None, "top7_frequency": 0}
-        for a in apps
-        if a.get("eligible", True)
-    }
-
-    grid_points = [round(x * 0.02, 2) for x in range(51)]
+    # Evaluate actual awards (including budget and regime rules), not a top-seven proxy.
+    intervals = {a["name"]: {"alpha_min": None, "alpha_max": None, "top7_frequency": 0, "funded_intervals": []} for a in apps}
+    changes = []
+    previous = None
+    grid_points = [round(x * .02, 2) for x in range(51)]
     for alpha in grid_points:
-        w_c = 0.55 * alpha
-        w_a = 0.55 * (1.0 - alpha)
-        ranked_alpha = evaluate_all_applicants(
-            apps,
-            w_cascade=w_c,
-            w_anchor=w_a,
-            w_people=0.25,
-            w_purity=0.20,
-        )
-        # Filter out CDBG-rerouted non-profit clinic when determining the 7 commercial storefront awardees
-        awarded_alpha = [
-            r["name"]
-            for r in ranked_alpha
-            if r["eligible"] and "Health Clinic" not in r["name"]
-        ][:7]
-        for name in awarded_alpha:
-            rec = invariance_intervals[name]
-            rec["top7_frequency"] += 1
-            if rec["alpha_min"] is None or alpha < rec["alpha_min"]:
-                rec["alpha_min"] = alpha
-            if rec["alpha_max"] is None or alpha > rec["alpha_max"]:
+        portfolio = optimize_portfolio_knapsack(apps, budget, "C", {
+            "w_cascade": .55 * alpha, "w_anchor": .55 * (1 - alpha), "w_people": .25, "w_purity": .20,
+        })
+        current = {a["name"]: a["award_amount"] for a in portfolio["allocations"] if a["award_amount"] > 0}
+        if previous is not None and current != previous:
+            changes.append({"alpha_lower": round(alpha - .02, 2), "alpha_upper": alpha,
+                            "awards_before": previous, "awards_after": current})
+        for name, rec in intervals.items():
+            if name in current:
+                rec["top7_frequency"] += 1
+                rec["alpha_min"] = alpha if rec["alpha_min"] is None else rec["alpha_min"]
                 rec["alpha_max"] = alpha
-
+                runs = rec["funded_intervals"]
+                if runs and math.isclose(runs[-1][1], alpha - .02, abs_tol=1e-8):
+                    runs[-1][1] = alpha
+                else:
+                    runs.append([alpha, alpha])
+        previous = current
     return {
+        "status": "SAMPLED_SCENARIO_ANALYSIS" if apps else "INSUFFICIENT_EVIDENCE",
         "simplex_vertices_evaluated": simplex_vertices,
-        "vertex_top3_tier1": vertex_top3_sets,
-        "vertex_top7_awardees": vertex_top7_sets,
-        "robust_tier1_anchors": sorted(robust_tier1),
-        "robust_awardee_set_S_robust": sorted(robust_portfolio),
-        "crossover_phase_boundary_alpha": 0.72,
-        "crossover_explanation": (
-            "For alpha in [0.15, 0.72], Central Market Corner Grocer, Sour Flour, and Cumaica Coffee "
-            "co-anchor Tier 1. Only when alpha > 0.72 (extreme B2B supply weight) does a secondary "
-            "catering/dining node overtake the essential neighborhood grocer."
-        ),
-        "parameter_invariance_intervals": invariance_intervals,
+        "vertex_top3_tier1": vertex_top3_sets, "vertex_top7_awardees": vertex_top7_sets,
+        "robust_tier1_anchors": sorted(robust_tier1), "robust_awardee_set_S_robust": sorted(robust_portfolio),
+        "crossover_phase_boundary_alpha": None,
+        "crossover_explanation": f"{len(changes)} award changes observed on a 0.02-spaced grid. Exact boundaries are not established." if apps else "No applicants; no crossover can be established.",
+        "sampled_award_changes": changes, "grid_step": .02,
+        "parameter_invariance_intervals": intervals,
+        "scope": "Four policy configurations and 51 sampled cascade/anchor weights; no all-weight robustness proof.",
     }
 
 

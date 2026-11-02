@@ -27,3 +27,16 @@ data/*.csv.gz
 data/*.csv
 !data/bea_direct_requirements.csv
 !data/bea_naics_concordance.csv
+
+# Private applicant intake and local runtime state
+var/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+**/.adk/
+server/.agent_runtime_resource
+frontend/node_modules/
+frontend/dist/
+
+frontend/*.tsbuildinfo

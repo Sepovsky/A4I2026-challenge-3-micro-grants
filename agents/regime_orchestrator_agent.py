@@ -6,12 +6,9 @@ Coordinates the 3 specialized evaluation agents:
   2. Runway, Sector & Purity Agent (`Runway_Sector_Purity_Agent`)
   3. Spatial Foot-Traffic & Human-Impact Agent (`Spatial_Human_Impact_Agent`)
 
-Consumes the Google-managed BigQuery MCP server / `BigQueryToolset` and executes
-genuine multi-hop GQL traversals on `a4i_econ.LocalEconomy`, applies post-traversal
-provenance weighting and non-monotonic survival lift filtering, executes Submodular
-Multi-Choice Knapsack Portfolio Optimization across Regimes A, B, and C, computes
-Parameter Invariance Intervals and the Simplex Robust Awardee Set S_robust, and
-generates the decision-grade Red-Team Compliance Report.
+The deterministic pipeline evaluates supplied scenarios and returns source-only
+records without awards. Live graph tools are separate explicit calls. Allocation
+is a budgeted priority heuristic; sensitivity is sampled and reports are drafts.
 """
 
 from __future__ import annotations
@@ -83,9 +80,9 @@ You must NEVER perform arithmetic in prose. You orchestrate:
 2. Runway, Sector & Purity Agent (`runway_sector_purity_agent`)
 3. Spatial Foot-Traffic & Human-Impact Agent (`spatial_human_impact_agent`)
 and invoke deterministic optimization tools to compare Regimes A, B, and C under a $50,000 budget,
-prevent partial-grant dilution on Indivisible Capital Cliffs, enforce 200m spatial critical mass,
-compute parameter invariance intervals [alpha_min, alpha_max] and S_robust, and produce the
-Red-Team Compliance & Determination Report."""
+prevent partial-grant dilution on Indivisible Capital Cliffs, audit a 200m straight-line cluster radius proxy,
+report sampled award stability, and produce a draft scenario report.
+Never claim exact optimization, all-weight proofs, inspected documents or approved awards."""
 
 
 class RegimeStressTestOrchestratorAgent:
@@ -155,7 +152,7 @@ class RegimeStressTestOrchestratorAgent:
         supply_output = self.supply_agent.evaluate(applicants=apps)
         runway_output = self.runway_agent.evaluate(applicants=apps)
 
-        regimes_comparison = run_all_regimes_comparison(applicants=apps, budget=budget)
+        regimes_comparison = run_all_regimes_comparison(applicants=apps, budget=budget, weights=weights)
         selected_portfolio = optimize_portfolio_knapsack(
             applicants=apps,
             budget=budget,
@@ -183,6 +180,7 @@ class RegimeStressTestOrchestratorAgent:
         )
 
         return {
+            "status": "MODELED_SCENARIO",
             "orchestrator": self.name,
             "orchestrator_id": self.agent_name,
             "display_name": self.display_name,

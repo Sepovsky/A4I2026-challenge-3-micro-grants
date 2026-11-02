@@ -56,3 +56,18 @@ The saved notebook found AUC 0.700 for loan terms and 0.695 with graph features
 predictive improvement. Hub reach versus failure risk had rho=-0.14, p=0.33
 across 47 industries. Use graph structure for modeled consequence, and label SBA
 history as an industry charge-off prior with its own limitations.
+
+
+Current implementation rules: portfolio allocation is a budgeted priority heuristic,
+not an exact knapsack optimizer. Awards cannot exceed requests, and an indivisible
+shock receives either its entire request or zero. Regime comparisons use the same
+supplied policy weights. Sensitivity checks compare actual funded awards under the
+budget at 51 grid points; there is no hardcoded 0.72 crossover or all-weight proof.
+Spatial compliance includes a straight-line centroid radius check; missing coordinates
+cannot establish co-location. Fixture clusters may fail this check.
+
+Reports are draft scenario analyses. Do not label a modeled job count as jobs saved,
+an invoice flag as a reviewed invoice, or a calculated portfolio as an approved award.
+Documentary checks remain REVIEW_REQUIRED in scenario reports. The connected console
+supports versioned intake with a separate recorded review; reviewed source records
+still require independently validated grant-effect assumptions and source rates.

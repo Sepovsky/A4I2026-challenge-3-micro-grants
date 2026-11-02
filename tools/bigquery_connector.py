@@ -260,10 +260,19 @@ class BigQueryGraphConnector:
         return [dict(r.items()) for r in rows]
 
     def query_gql_shortest_paths(self, limit: int = 40, max_hops: int = 2,
-                                timeout: float = 25.0) -> List[Dict[str, Any]]:
-        """Return named live paths; local review paths are a separate evidence source."""
+                                timeout: float = 25.0,
+                                business_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """Filter named cloud paths before limiting; IDs are bound SQL parameters."""
         sql = get_gql_shortest_path_trace_sql(self.dataset, limit=limit, max_hops=max_hops)
-        return [dict(r.items()) for r in self._get_client().query(sql).result(timeout=timeout)]
+        kwargs = {}
+        if business_ids is not None:
+            if not business_ids or any(not isinstance(bid, str) or not bid.strip() for bid in business_ids):
+                raise ValueError("Supply nonempty business IDs")
+            from google.cloud import bigquery
+            sql = sql.replace("ORDER BY seed_id, exposed_id", "WHERE seed_id IN UNNEST(@business_ids)\nORDER BY seed_id, exposed_id")
+            kwargs["job_config"] = bigquery.QueryJobConfig(query_parameters=[
+                bigquery.ArrayQueryParameter("business_ids", "STRING", business_ids)])
+        return [dict(r.items()) for r in self._get_client().query(sql, **kwargs).result(timeout=timeout)]
 
     def fetch_applicants(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
@@ -369,8 +378,17 @@ def trace_applicant_multihop_paths_and_compare(
         result.update(gql_execution_mode="LOCAL_REVIEW_BFS (not executed GQL)",
                       comparison=[_named_local_trace(graph, a["id"], max_hops) for a in selected])
     else:
-        result["traversal"] = traverse_corridor_graph_gql(
-            min_exposed=0, project_id=project_id, dataset=dataset, max_hops=max_hops)
+        connector = BigQueryGraphConnector(project_id=project_id, dataset=dataset)
+        try:
+            paths = connector.query_gql_shortest_paths(limit=1000, max_hops=max_hops,
+                                                       business_ids=[a["id"] for a in selected])
+            reach = {r["business_id"]: r for r in connector.query_gql_multihop_cascade(min_exposed=0, max_hops=max_hops)}
+            result.update(gql_execution_mode="LIVE_BIGQUERY_GQL", comparison=[
+                {"root": a["id"], "reach": reach.get(a["id"], {}).get("exposed_businesses"),
+                 "paths": [p for p in paths if p["seed_id"] == a["id"]],
+                 "paths_may_be_truncated": len(paths) == 1000} for a in selected])
+        except Exception as exc:
+            result.update(gql_execution_mode="BIGQUERY_QUERY_FAILED", error=str(exc), comparison=[])
     return result
 
 

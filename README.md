@@ -11,10 +11,11 @@ four cooperating agent modules, deterministic scoring, three funding regimes,
 sensitivity checks, and structured audit reports.
 
 **Exercised locally:** the 232-record registry review, 293-link supply model,
-33 regression and integration tests, the deterministic four-agent benchmark, and the real-source
-`EVIDENCE_ONLY` workflow. The benchmark runs all three funding regimes and passes
-its ten scenario audit checks. Its financials and beneficiary totals are assumed;
-these checks do not establish real grant effectiveness.
+regression and integration tests, the deterministic four-agent benchmark, and the real-source
+`EVIDENCE_ONLY` workflow. The benchmark runs all three funding regimes and reports
+scenario checks individually. Its spatial radius check currently fails for one
+fixture cluster; missing document reviews remain pending. Financials and beneficiary
+totals are assumptions, not established grant effectiveness.
 
 **Awaiting cloud validation:** the revised BigQuery SQL, canonical rate export
 and new notebook diagnostics need an authenticated rerun. Live Google ADK/cloud
@@ -69,13 +70,13 @@ These capabilities already exist in the repository in addition to Tasks 2 and 3:
 | Four-agent coordination and selection | [Orchestrator](agents/regime_orchestrator_agent.py) coordinates [supply/provenance](agents/supply_provenance_agent.py), [runway/sector/purity](agents/runway_sector_purity_agent.py), and [spatial/human impact](agents/spatial_human_impact_agent.py). Named selectors, standalone agent packages, Google ADK factories and a [root entrypoint](agent/agent.py) are wired in code. | All four deterministic selectors and their source gates tested; live model-backed execution not verified in this review. |
 | Five scoring dimensions | [Scoring engine](tools/scoring_engine.py): financial runway and marginal survival lift; sector volatility; people-helped/efficiency scores combining direct workers, network workers, commuters and residents; small-business ownership/size purity; upstream/root-supplier importance. Community-anchor and ACS equity multipliers are also implemented. | Scenario calculations; current applicant finances and service reach are not inferred from registry data. |
 | Eligibility and provenance rules | Supplied ownership, headcount, location and storefront inputs; NAICS-81 scenario filters; modeled/verified tags; invoice-request flags; zero-cascade comparison. | Policy/model assumptions. A verification flag is not an inspected invoice or a statutory eligibility determination. |
-| Funding regime comparison | Full-grant threshold (A), concave bridge (B), and tiered hybrid (C), with budget limits, indivisible-shock handling and alternate-routing fields. Regime C reserves a community-anchor slot and attempts cluster top-ups. | Priority-based scenario allocation. Despite the `optimize_portfolio_knapsack` name, this is not an exact knapsack solver or a guarantee that every cluster can reach critical mass. |
-| Overlap, spatial and bottleneck diagnostics | Jaccard downstream overlap penalties, proximity/critical-mass checks, and unapplied-supplier alert dossiers. | Overlap is reported after allocation; cluster selection uses a heuristic with a final spatial audit. Legacy bottleneck alerts use fixture/industry assumptions, not source-verified supplier discovery. |
-| Sensitivity analysis | Four policy-weight configurations plus a 51-point cascade/anchor sweep; reports intersections and sampled ranking intervals. | Sampled scenario checks, not a proof across all weights. The returned `0.72` crossover narrative is fixture metadata. |
-| Audit reports and context tools | [Reporter](tools/compliance_reporter.py) evaluates ten scenario attack vectors and a five-step field checklist, then generates a Markdown determination-style report. [Context loader](ADK/adk_context_loader.py) indexes seven documents, equations, agent rubrics and defense sections, including the merged refactor guide. | Benchmark report generation exercised; no independent audit certificate or actual award approval. |
+| Funding regime comparison | Full-grant threshold (A), concave bridge (B), and tiered hybrid (C), with budget limits, indivisible-shock handling and alternate-routing fields. Regime C reserves an affordable community-anchor slot and then funds urgent flexible requests. Awards are capped at requests; indivisible shocks require full funding. | Priority-based scenario allocation. Despite the `optimize_portfolio_knapsack` name, this is not an exact knapsack solver or a guarantee that every cluster can reach critical mass. |
+| Overlap, spatial and bottleneck diagnostics | Jaccard downstream overlap penalties, proximity/critical-mass checks, and unapplied-supplier alert dossiers. | Overlap is reported after allocation; the spatial audit checks counts and a straight-line 200m centroid radius proxy. It does not measure pedestrian routes. Legacy bottleneck alerts use fixture/industry assumptions, not source-verified supplier discovery. |
+| Sensitivity analysis | Four policy-weight configurations plus a 51-point cascade/anchor sweep; reports intersections and sampled ranking intervals. | Sampled scenario checks, not a proof across all weights. Award changes are computed on the sampled grid; no exact crossover is asserted. |
+| Audit reports and context tools | [Reporter](tools/compliance_reporter.py) evaluates ten scenario attack vectors and a five-step field checklist, then generates a Markdown determination-style report. [Context loader](ADK/adk_context_loader.py) indexes seven documents, equations, agent rubrics and defense sections, including the merged refactor guide. | Draft reports derive checks from current awards. Document-review statuses remain pending; no audit certificate or actual award approval is issued. |
 | Source-evidence safeguards | Real-source agent records return `EVIDENCE_ONLY`; missing finances, ownership and invoices are not fabricated. The source loader never silently falls back to the illustrative benchmark. | Source-mode behavior and refusal to score incomplete source records tested. |
 | Live traversal, comparison and MCP wiring | [Connector](tools/bigquery_connector.py) exposes named shortest paths, graph traversal, applicant comparison and funding entrypoints; [MCP toolsets](tools/mcp_bigquery_toolset.py) and [toolbox definitions](tools.yaml) wire Google-managed BigQuery access. | Integration tests cover live-query failure, eight-hop/timeout propagation and evidence gates. A failed cloud call returns no invented paths; explicit local mode identifies BFS results separately. Authenticated MCP/GQL calls remain unverified. |
-| Runtime and deployment sources | [Server](server/app.py), [runtime deployment](scripts/deploy_agent_runtime.py), [deployment script](scripts/deploy.sh) and [Dockerfile](Dockerfile) provide the merged service/deployment entrypoints. See the [refactor and verification guide](ADK/docs/04_ADK_REFACTOR_AND_TEST_GUIDE.md). | Source code present; no deployment or live service verification performed in this review. |
+| Runtime and deployment sources | [Server](server/app.py), [runtime deployment](scripts/deploy_agent_runtime.py), [deployment script](scripts/deploy.sh) and [Dockerfile](Dockerfile) provide the merged service/deployment entrypoints. See the [refactor and verification guide](ADK/docs/04_ADK_REFACTOR_AND_TEST_GUIDE.md). | The local gateway and browser workflow are covered by integration checks. Authenticated cloud deployment remains unverified. |
 
 The [source-evidence rules](ADK/docs/04_SOURCE_EVIDENCE_AND_REVIEW.md) take priority
 over numerical examples and policy assumptions in the earlier design documents.
@@ -92,6 +93,80 @@ over numerical examples and policy assumptions in the earlier design documents.
 
 Graph depth and the number of social mechanisms are different. A four-hop path
 does not by itself establish four independently measured community harms.
+
+## Run the connected review console
+
+```sh
+python3 -m pip install -r server/requirements.txt
+python3 -m uvicorn server.app:app --host 127.0.0.1 --port 8080 --no-proxy-headers
+```
+
+Open http://127.0.0.1:8080. The console defaults to the 232-record reviewed registry
+cohort. Select the illustrative scenario explicitly to compare regimes, policy
+weights and proposed awards. The queue, tool console and downloaded Markdown report
+use the same backend calculations. No browser-side scores or preset agent answers
+are used. The tool console is deterministic; it does not pretend to be a Gemini chat.
+The optional Vite development shell proxies the same console at `/console/`.
+
+Select a registry location to enter current financials, ownership, shock category
+and document references. Save a pending revision, inspect the actual documents,
+then record a separate review with a reviewer name and finding. Edits invalidate
+previous verification. Version conflicts return HTTP 409. Local records are stored
+in `var/evidence.sqlite3` (override with `EVIDENCE_DB_PATH`), excluded from Git and
+container builds. The revision history is retained. References identify officer-held
+documents; the console does not upload bank statements or invoices.
+
+A reviewed intake calculates cash runway but does **not** establish a causal grant
+effect or authorize funding. Source records remain `EVIDENCE_ONLY`; unknown debt,
+missing vendor evidence, unresolved registry duplicates and missing model evidence
+must be addressed independently. The model never fills those gaps with the fixture.
+
+All `/api/` routes require `RELIEF_API_TOKEN` when configured. Without a token, only
+direct loopback connections are accepted; forwarded headers cannot grant access.
+Enter the token in the console’s access panel (kept only in tab memory). API clients
+send `Authorization: Bearer <token>`. Cloud Run requires both the configured token
+and a private service; missing secrets fail closed. This is shared officer access,
+not per-user identity management or separation of duties.
+
+For deployment, configure `PROJECT_ID`, `SERVICE_ACCOUNT`, `API_TOKEN_SECRET` and
+`EVIDENCE_GCS_BUCKET`, then run `bash scripts/deploy.sh`. The account needs access to
+the named secret and private evidence bucket, plus only the BigQuery/Vertex access
+used by the deployment. Provision these resources and permissions separately. Use
+a private, versioned bucket with suitable retention controls. Cloud evidence uses
+atomic [generation preconditions](https://cloud.google.com/storage/docs/request-preconditions)
+to reject concurrent updates. Local SQLite is never used as durable Cloud Run
+storage. The deployment script preserves tracked files and does not grant IAM
+roles or auto-select an unrelated remote agent. Set `AGENT_RUNTIME_RESOURCE`
+explicitly to use a remote runtime; its failure returns HTTP 502 without silently
+switching execution backends. No cloud deployment is performed by the test suite.
+
+## Verification
+
+```sh
+python3 -m pip install -r requirements-dev.txt
+python3 -m unittest discover -s tests -v
+python3 -m playwright install chromium
+python3 tests/browser_smoke.py
+```
+
+The browser smoke test launches a temporary local gateway and checks authentication,
+source paths, saved intake and review, scenario allocation, report download, mobile
+layout, safe text rendering, and backend failure handling. It uses a temporary
+private database. `CHROME_EXECUTABLE` can select an existing Chromium executable.
+The GitHub Actions workflow installs dependencies and runs these checks, both agent
+modes, JavaScript syntax validation, and shell syntax validation. ADK startup checks
+run with an offline diagnostic model; they do not establish Gemini effectiveness.
+
+After publishing the revised SQL/notebooks in the authenticated environment, run:
+
+```sh
+python3 scripts/cloud_smoke.py --project YOUR_PROJECT_ID
+```
+
+This opt-in check reads the existing cloud graph and source tables, compares two-hop
+GQL and table traversal counts, checks named paths, and saves a result in
+`var/cloud-smoke.json`. It neither installs graph DDL nor proves MCP/ADK execution.
+An authenticated cloud result is still required before claiming cloud validation.
 
 ## Reproduce locally
 

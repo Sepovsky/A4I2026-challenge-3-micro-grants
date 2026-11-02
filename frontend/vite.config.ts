@@ -1,10 +1,15 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
 
+// Serve the maintained console through the gateway during frontend development.
 export default defineConfig({
-  plugins: [react()],
   server: {
     port: 5173,
-    host: true,
+    host: '127.0.0.1',
+    proxy: {
+      '/console': { target: 'http://127.0.0.1:8080', rewrite: path => path.replace(/^\/console/, '') || '/' },
+      '/api': 'http://127.0.0.1:8080',
+      '/css': 'http://127.0.0.1:8080',
+      '/js': 'http://127.0.0.1:8080',
+    },
   },
 });
